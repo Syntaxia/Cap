@@ -34,7 +34,7 @@ services:
       CAP_AWS_BUCKET: ${CAP_AWS_BUCKET}
       CAP_AWS_REGION: ${CAP_AWS_REGION}
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT}
-      S3_PATH_STYLE: "false"
+      S3_PATH_STYLE: "true"
       MEDIA_SERVER_URL: http://media-server:3456
       MEDIA_SERVER_WEBHOOK_URL: http://cap-web:3000
       CAP_ALLOWED_SIGNUP_DOMAINS: syntaxia.com
