@@ -37,6 +37,10 @@ jobs:
           ssh-keyscan "$SERVER_IP" >> ~/.ssh/known_hosts
           echo "SERVER_IP=$SERVER_IP" >> "$GITHUB_ENV"
 
+      - name: Ensure app directory exists
+        run: |
+          ssh -i ~/.ssh/cap_deploy deploy@"$SERVER_IP" "mkdir -p /home/deploy/cap"
+
       - name: Write .env on server
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
