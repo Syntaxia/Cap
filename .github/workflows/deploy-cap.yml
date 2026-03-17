@@ -1,0 +1,115 @@
+name: Deploy Cap
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-cap
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Digital Ocean
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://cap.syntaxia.com
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install 1Password CLI
+        run: |
+          curl -sS https://downloads.1password.com/linux/debian/amd64/stable/1password-cli-amd64-latest.deb -o /tmp/op.deb
+          sudo dpkg -i /tmp/op.deb
+
+      - name: Configure SSH
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p ~/.ssh
+          SERVER_IP=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/Server IP/ip")
+          op read "op://jzxxspp7e3pl6kfhzscsldanei/Deploy SSH Key/private key" > ~/.ssh/cap_deploy
+          chmod 600 ~/.ssh/cap_deploy
+          ssh-keyscan "$SERVER_IP" >> ~/.ssh/known_hosts
+          echo "SERVER_IP=$SERVER_IP" >> "$GITHUB_ENV"
+
+      - name: Write .env on server
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          MYSQL_PASSWORD=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/Cap MySQL/password")
+          MYSQL_ROOT_PASSWORD=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/Cap MySQL/root_password")
+          NEXTAUTH_SECRET=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/Cap Secrets/nextauth_secret")
+          DATABASE_ENCRYPTION_KEY=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/Cap Secrets/database_encryption_key")
+          MEDIA_SERVER_WEBHOOK_SECRET=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/Cap Secrets/media_server_webhook_secret")
+          CAP_AWS_ACCESS_KEY=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/AWS S3/ACCESS_KEY_ID")
+          CAP_AWS_SECRET_KEY=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/AWS S3/SECRET_ACCESS_KEY")
+          CAP_AWS_BUCKET=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/AWS S3/BUCKET_NAME")
+          CAP_AWS_REGION=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/AWS S3/REGION")
+          S3_PUBLIC_ENDPOINT=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/AWS S3/DISTRIBUTION_HOST")
+          GROQ_API_KEY=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/Groq/credential")
+          RESEND_API_KEY=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/Cap Resend/credential" 2>/dev/null || echo "")
+          RESEND_FROM_DOMAIN=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/Cap Resend/from_domain" 2>/dev/null || echo "")
+          GOOGLE_CLIENT_ID=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/Google OAuth/client_id" 2>/dev/null || echo "")
+          GOOGLE_CLIENT_SECRET=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/Google OAuth/credential" 2>/dev/null || echo "")
+
+          ENV_CONTENT="MYSQL_PASSWORD=${MYSQL_PASSWORD}
+          MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+          NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+          DATABASE_ENCRYPTION_KEY=${DATABASE_ENCRYPTION_KEY}
+          MEDIA_SERVER_WEBHOOK_SECRET=${MEDIA_SERVER_WEBHOOK_SECRET}
+          CAP_AWS_ACCESS_KEY=${CAP_AWS_ACCESS_KEY}
+          CAP_AWS_SECRET_KEY=${CAP_AWS_SECRET_KEY}
+          CAP_AWS_BUCKET=${CAP_AWS_BUCKET}
+          CAP_AWS_REGION=${CAP_AWS_REGION}
+          S3_PUBLIC_ENDPOINT=${S3_PUBLIC_ENDPOINT}
+          GROQ_API_KEY=${GROQ_API_KEY}
+          RESEND_API_KEY=${RESEND_API_KEY}
+          RESEND_FROM_DOMAIN=${RESEND_FROM_DOMAIN}
+          GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+          GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}"
+
+          echo "$ENV_CONTENT" | sed 's/^[[:space:]]*//' | ssh -i ~/.ssh/cap_deploy deploy@"$SERVER_IP" "cat > /home/deploy/cap/.env"
+
+      - name: Copy deployment files
+        run: |
+          scp -i ~/.ssh/cap_deploy deploy/docker-compose.prod.yml deploy@"$SERVER_IP":/home/deploy/cap/docker-compose.yml
+          scp -i ~/.ssh/cap_deploy deploy/Caddyfile deploy@"$SERVER_IP":/home/deploy/cap/Caddyfile
+
+      - name: Pull images and restart services
+        run: |
+          ssh -i ~/.ssh/cap_deploy deploy@"$SERVER_IP" "cd /home/deploy/cap && docker compose pull && docker compose up -d --remove-orphans"
+
+  verify:
+    name: Verify Deployment
+    runs-on: ubuntu-latest
+    needs: [deploy]
+
+    steps:
+      - name: Health check
+        run: |
+          sleep 15
+          for i in {1..10}; do
+            response=$(curl -s -o /dev/null -w "%{http_code}" https://cap.syntaxia.com 2>/dev/null || echo "000")
+            if [ "$response" = "200" ] || [ "$response" = "307" ]; then
+              echo "Health check passed (HTTP $response)"
+              exit 0
+            fi
+            echo "Attempt $i: HTTP $response, retrying in 15s..."
+            sleep 15
+          done
+          echo "Health check failed after 10 attempts"
+          exit 1
+
+      - name: Test login page renders
+        run: |
+          if curl -sL https://cap.syntaxia.com/login | grep -qi "cap"; then
+            echo "Login page renders correctly"
+          else
+            echo "Login page failed to render"
+            exit 1
+          fi

@@ -1,0 +1,3 @@
+cap.syntaxia.com {
+	reverse_proxy cap-web:3000
+}
