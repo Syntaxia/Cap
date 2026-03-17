@@ -54,7 +54,9 @@ jobs:
           CAP_AWS_SECRET_KEY=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/AWS S3/SECRET_ACCESS_KEY")
           CAP_AWS_BUCKET=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/AWS S3/BUCKET_NAME")
           CAP_AWS_REGION=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/AWS S3/REGION")
-          S3_PUBLIC_ENDPOINT=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/AWS S3/DISTRIBUTION_HOST")
+          S3_PUBLIC_ENDPOINT_RAW=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/AWS S3/DISTRIBUTION_HOST")
+          S3_PUBLIC_ENDPOINT="${S3_PUBLIC_ENDPOINT_RAW#https://}"
+          S3_PUBLIC_ENDPOINT="https://${S3_PUBLIC_ENDPOINT}"
           GROQ_API_KEY=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/Groq/credential")
           RESEND_API_KEY=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/Cap Resend/credential" 2>/dev/null || echo "")
           RESEND_FROM_DOMAIN=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/Cap Resend/from_domain" 2>/dev/null || echo "")
