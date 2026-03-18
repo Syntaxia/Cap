@@ -4,7 +4,9 @@ This file provides comprehensive guidance to Claude Code when working with code 
 
 ## Project Overview
 
-Cap is the open source alternative to Loom. It's a Turborepo monorepo with a Tauri v2 desktop app (Rust + SolidStart) and a Next.js web app. The Next.js app at `apps/web` is the main web application for sharing and management; the desktop app at `apps/desktop` is the cross‑platform recorder/editor (macOS and Windows).
+This is Syntaxia's fork of [Cap](https://github.com/CapSoftware/Cap), the open source alternative to Loom. It's a Turborepo monorepo with a Tauri v2 desktop app (Rust + SolidStart) and a Next.js web app. The Next.js app at `apps/web` is the main web application for sharing and management; the desktop app at `apps/desktop` is the cross‑platform recorder/editor (macOS and Windows).
+
+We maintain this fork to deploy our own customized instance at `cap.syntaxia.com`. We build our own Docker image from source (rather than pulling upstream's pre-built image) so that bug fixes and customizations ship immediately.
 
 ### Product Context
 - **Core Purpose**: Screen recording with instant sharing capabilities
@@ -231,6 +233,56 @@ const updateMutation = useMutation({
 - Stripe: `STRIPE_SECRET_KEY_TEST`, `STRIPE_SECRET_KEY_LIVE`, `STRIPE_WEBHOOK_SECRET`
 - CDN signing: `CLOUDFRONT_KEYPAIR_ID`, `CLOUDFRONT_KEYPAIR_PRIVATE_KEY`
 - Optional S3 endpoints: `S3_PUBLIC_ENDPOINT`, `S3_INTERNAL_ENDPOINT`
+
+## Deployment (Syntaxia Fork)
+
+This fork is self-hosted on a Digital Ocean droplet at `cap.syntaxia.com`.
+
+### How It Works
+
+We build our own Docker image from source in CI and transfer it directly to the server — no container registry involved.
+
+**Pipeline** (`.github/workflows/deploy-cap.yml`):
+1. GitHub Actions builds the Docker image from `apps/web/Dockerfile` with `NEXT_PUBLIC_WEB_URL=https://cap.syntaxia.com` baked in at build time
+2. The image is saved as a gzipped tarball (`docker save | gzip`)
+3. The tarball is SCPed to the Digital Ocean droplet
+4. The server loads the image (`docker load`) and restarts services via `docker compose up -d --force-recreate`
+
+**Trigger**: Every push to `main` or manual `workflow_dispatch`.
+
+### Secrets Management (1Password)
+
+All secrets are stored in a 1Password vault (ID: `jzxxspp7e3pl6kfhzscsldanei`). The GitHub Actions workflow uses `OP_SERVICE_ACCOUNT_TOKEN` (stored as a GitHub secret) to read secrets at deploy time via the `op` CLI. Secrets are written to a `.env` file on the server, which `docker-compose.prod.yml` reads.
+
+1Password items used:
+- `Cap MySQL` — `password`, `root_password`
+- `Cap Secrets` — `nextauth_secret`, `database_encryption_key`, `media_server_webhook_secret`
+- `AWS S3` — `ACCESS_KEY_ID`, `SECRET_ACCESS_KEY`, `BUCKET_NAME`, `REGION`
+- `Groq` — `credential`
+- `Cap Resend` — `credential`, `from_domain` (optional)
+- `Google OAuth` — `client_id`, `credential` (optional)
+- `Server IP` — `ip`
+- `Deploy SSH Key` — `private key`
+
+### Infrastructure
+
+- **Server**: Digital Ocean droplet, SSH user `deploy`
+- **Reverse proxy**: Caddy (handles SSL via Let's Encrypt, serves `/rive/*` static files)
+- **Database**: MySQL 8.0 (Docker container, data persisted in `cap-mysql-data` volume)
+- **Media processing**: Upstream `ghcr.io/capsoftware/cap-media-server:latest` (not forked)
+- **S3**: AWS S3 with path-style URLs (`S3_PATH_STYLE=true`)
+- **Domain**: `cap.syntaxia.com`, signup restricted to `syntaxia.com` emails
+
+### Key Deployment Files
+
+- `deploy/docker-compose.prod.yml` — Production compose file (Caddy + cap-web + media-server + MySQL)
+- `deploy/Caddyfile` — Caddy reverse proxy config for `cap.syntaxia.com`
+- `.github/workflows/deploy-cap.yml` — CI/CD pipeline
+- `apps/web/Dockerfile` — Multi-stage Docker build (accepts `NEXT_PUBLIC_WEB_URL` as build arg)
+
+### Why We Build Our Own Image
+
+Upstream Cap publishes `ghcr.io/capsoftware/cap-web:latest`. Previously we pulled that image directly, but this meant any bug fixes or customizations in our fork never shipped. Now we build from our own source so changes land immediately on push to `main`.
 
 ## Testing & Build Optimization
 

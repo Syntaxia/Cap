@@ -18,7 +18,7 @@ services:
 
   cap-web:
     container_name: cap-web
-    image: ghcr.io/capsoftware/cap-web:latest
+    image: cap-web:latest
     restart: unless-stopped
     depends_on:
       mysql:

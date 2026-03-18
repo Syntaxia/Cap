@@ -2,60 +2,55 @@
   <p align="center">
    <img width="150" height="150" src="https://github.com/CapSoftware/Cap/blob/main/apps/desktop/src-tauri/icons/Square310x310Logo.png" alt="Logo">
   </p>
-	<h1 align="center"><b>Cap</b></h1>
+	<h1 align="center"><b>Cap (Syntaxia Fork)</b></h1>
 	<p align="center">
-		The open source Loom alternative.
+		Syntaxia's self-hosted fork of <a href="https://github.com/CapSoftware/Cap">Cap</a>, the open source Loom alternative.
     <br />
-    <a href="https://cap.so"><strong>Cap.so »</strong></a>
-    <br />
-    <br />
-    <b>Downloads for </b>
-		<a href="https://cap.so/download">macOS & Windows</a>
-    <br />
+    <a href="https://cap.syntaxia.com"><strong>cap.syntaxia.com »</strong></a>
   </p>
 </p>
 <br/>
 
-[![Open Bounties](https://img.shields.io/endpoint?url=https%3A%2F%2Fconsole.algora.io%2Fapi%2Fshields%2FCapSoftware%2Fbounties%3Fstatus%3Dopen)](https://console.algora.io/org/CapSoftware/bounties?status=open)
+This is Syntaxia's fork of [Cap](https://github.com/CapSoftware/Cap). We build and deploy our own Docker image from source so that bug fixes and customizations ship immediately, rather than depending on upstream's pre-built image.
 
-Cap is the open source alternative to Loom. It's a video messaging tool that allows you to record, edit and share videos in seconds.
+## Deployment
 
-<img src="https://raw.githubusercontent.com/CapSoftware/Cap/refs/heads/main/apps/web/public/landing-cover.png"/>
+Our instance runs at **https://cap.syntaxia.com** on a Digital Ocean droplet.
 
-# Self Hosting
+### How It Works
 
-### Quick Start (One Command)
+1. Push to `main` triggers GitHub Actions (`.github/workflows/deploy-cap.yml`)
+2. CI builds the Docker image from `apps/web/Dockerfile`
+3. Image is saved as a tarball, SCPed to the server, and loaded with `docker load`
+4. `docker compose up -d --force-recreate` restarts services
 
-```bash
-git clone https://github.com/CapSoftware/Cap.git && cd Cap && docker compose up -d
-```
+No container registry is used — the image is transferred directly to the server.
 
-Cap will be running at `http://localhost:3000`. That's it!
+### Secrets (1Password)
 
-> **Note:** Login links appear in the logs (`docker compose logs cap-web`) since email isn't configured by default.
+All secrets are stored in a 1Password vault and fetched at deploy time via the `op` CLI. The GitHub Actions workflow uses `OP_SERVICE_ACCOUNT_TOKEN` to authenticate. Secrets are written to `.env` on the server, consumed by `deploy/docker-compose.prod.yml`.
 
-### Other Deployment Options
+### Infrastructure
 
-| Method | Best For |
-|--------|----------|
-| **Docker Compose** | VPS, home servers, any Docker host |
-| **[Railway](https://railway.com/new/template/PwpGcf)** | One-click managed hosting |
-| **Coolify** | Self-hosted PaaS (use `docker-compose.coolify.yml`) |
+| Component | Details |
+|-----------|---------|
+| **Server** | Digital Ocean droplet, SSH user `deploy` |
+| **Reverse Proxy** | Caddy (SSL via Let's Encrypt) |
+| **Database** | MySQL 8.0 (Docker, volume `cap-mysql-data`) |
+| **Media Server** | Upstream `ghcr.io/capsoftware/cap-media-server:latest` |
+| **Storage** | AWS S3 (path-style URLs) |
+| **Domain** | `cap.syntaxia.com`, signup restricted to `syntaxia.com` |
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template/PwpGcf)
+### Key Files
 
-### Production Configuration
+- `deploy/docker-compose.prod.yml` — Production compose (Caddy + app + media-server + MySQL)
+- `deploy/Caddyfile` — Reverse proxy config
+- `.github/workflows/deploy-cap.yml` — CI/CD pipeline
+- `apps/web/Dockerfile` — Multi-stage build (accepts `NEXT_PUBLIC_WEB_URL` as build arg)
 
-For production, create a `.env` file:
+---
 
-```bash
-CAP_URL=https://cap.yourdomain.com
-S3_PUBLIC_URL=https://s3.yourdomain.com
-```
-
-See our [self-hosting docs](https://cap.so/docs/self-hosting) for full configuration options including email setup, AI features, and SSL.
-
-Cap Desktop can connect to your self-hosted instance via Settings → Cap Server URL.
+For upstream Cap documentation, see the [original README](https://github.com/CapSoftware/Cap#readme) and [self-hosting docs](https://cap.so/docs/self-hosting).
 
 # Monorepo App Architecture
 

@@ -115,7 +115,7 @@ const FolderCard = ({
 					await moveVideoToFolder({
 						videoId: data.id,
 						folderId: id,
-						spaceId: spaceId ?? activeOrganization?.organization.id,
+						spaceId,
 					});
 					toast.success(`"${data.name}" moved to "${name}" folder`);
 				} catch (error) {
