@@ -1,3 +1,10 @@
 cap.syntaxia.com {
-	reverse_proxy cap-web:3000
+	handle /rive/* {
+		root * /srv/public
+		file_server
+	}
+
+	handle {
+		reverse_proxy cap-web:3000
+	}
 }
