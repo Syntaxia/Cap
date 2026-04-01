@@ -3,11 +3,18 @@ name: cap
 services:
   caddy:
     container_name: cap-caddy
-    image: caddy:2-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
+    image: cap-caddy:latest
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      GEOIP2_ACCOUNT_ID: ${GEOIP2_ACCOUNT_ID}
+      GEOIP2_LICENSE_KEY: ${GEOIP2_LICENSE_KEY}
+      GEOIP2_EDITION_IDS: GeoLite2-City
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -45,6 +52,8 @@ services:
       DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      TINYBIRD_HOST: ${TINYBIRD_HOST:-}
+      TINYBIRD_TOKEN: ${TINYBIRD_TOKEN:-}
     volumes:
       - cap-public:/app/apps/web/public
     healthcheck:

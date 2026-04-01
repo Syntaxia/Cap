@@ -1,0 +1,18 @@
+SCHEMA >
+    `timestamp` DateTime `json:$.timestamp`,
+    `session_id` String `json:$.session_id`,
+    `user_id` String `json:$.user_id`,
+    `tenant_id` String `json:$.tenant_id`,
+    `action` String `json:$.action`,
+    `version` String `json:$.version`,
+    `pathname` String `json:$.pathname`,
+    `video_id` String `json:$.video_id`,
+    `country` String `json:$.country`,
+    `region` String `json:$.region`,
+    `city` String `json:$.city`,
+    `browser` String `json:$.browser`,
+    `device` String `json:$.device`,
+    `os` String `json:$.os`
+
+ENGINE "MergeTree"
+ENGINE_SORTING_KEY "tenant_id, action, timestamp"

@@ -35,8 +35,18 @@ jobs:
           tags: cap-web:latest
           load: true
 
-      - name: Save image as tarball
-        run: docker save cap-web:latest | gzip > /tmp/cap-web.tar.gz
+      - name: Build Caddy GeoIP image
+        uses: docker/build-push-action@v6
+        with:
+          context: deploy
+          file: deploy/Dockerfile.caddy
+          tags: cap-caddy:latest
+          load: true
+
+      - name: Save images as tarballs
+        run: |
+          docker save cap-web:latest | gzip > /tmp/cap-web.tar.gz
+          docker save cap-caddy:latest | gzip > /tmp/cap-caddy.tar.gz
 
       - name: Install 1Password CLI
         run: |
@@ -77,6 +87,10 @@ jobs:
           RESEND_FROM_DOMAIN=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/Cap Resend/from_domain" 2>/dev/null || echo "")
           GOOGLE_CLIENT_ID=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/Google OAuth/client_id" 2>/dev/null || echo "")
           GOOGLE_CLIENT_SECRET=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/Google OAuth/credential" 2>/dev/null || echo "")
+          TINYBIRD_HOST=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/Tinybird/url" 2>/dev/null || echo "")
+          TINYBIRD_TOKEN=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/Tinybird/credential" 2>/dev/null || echo "")
+          GEOIP2_ACCOUNT_ID=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/MaxMind GeoLite2/accountid" 2>/dev/null || echo "")
+          GEOIP2_LICENSE_KEY=$(op read "op://jzxxspp7e3pl6kfhzscsldanei/MaxMind GeoLite2/credential" 2>/dev/null || echo "")
 
           ENV_CONTENT="MYSQL_PASSWORD=${MYSQL_PASSWORD}
           MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
@@ -92,7 +106,11 @@ jobs:
           RESEND_API_KEY=${RESEND_API_KEY}
           RESEND_FROM_DOMAIN=${RESEND_FROM_DOMAIN}
           GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-          GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}"
+          GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+          TINYBIRD_HOST=${TINYBIRD_HOST}
+          TINYBIRD_TOKEN=${TINYBIRD_TOKEN}
+          GEOIP2_ACCOUNT_ID=${GEOIP2_ACCOUNT_ID}
+          GEOIP2_LICENSE_KEY=${GEOIP2_LICENSE_KEY}"
 
           echo "$ENV_CONTENT" | sed 's/^[[:space:]]*//' | ssh -i ~/.ssh/cap_deploy deploy@"$SERVER_IP" "cat > /home/deploy/cap/.env"
 
@@ -101,13 +119,14 @@ jobs:
           scp -i ~/.ssh/cap_deploy deploy/docker-compose.prod.yml deploy@"$SERVER_IP":/home/deploy/cap/docker-compose.yml
           scp -i ~/.ssh/cap_deploy deploy/Caddyfile deploy@"$SERVER_IP":/home/deploy/cap/Caddyfile
 
-      - name: Transfer image to server
+      - name: Transfer images to server
         run: |
           scp -i ~/.ssh/cap_deploy /tmp/cap-web.tar.gz deploy@"$SERVER_IP":/home/deploy/cap/cap-web.tar.gz
+          scp -i ~/.ssh/cap_deploy /tmp/cap-caddy.tar.gz deploy@"$SERVER_IP":/home/deploy/cap/cap-caddy.tar.gz
 
       - name: Load image and restart services
         run: |
-          ssh -i ~/.ssh/cap_deploy deploy@"$SERVER_IP" "docker load < /home/deploy/cap/cap-web.tar.gz && rm /home/deploy/cap/cap-web.tar.gz && cd /home/deploy/cap && docker compose up -d --force-recreate --remove-orphans"
+          ssh -i ~/.ssh/cap_deploy deploy@"$SERVER_IP" "docker load < /home/deploy/cap/cap-web.tar.gz && docker load < /home/deploy/cap/cap-caddy.tar.gz && rm /home/deploy/cap/cap-web.tar.gz /home/deploy/cap/cap-caddy.tar.gz && cd /home/deploy/cap && docker compose up -d --force-recreate --remove-orphans"
 
   verify:
     name: Verify Deployment

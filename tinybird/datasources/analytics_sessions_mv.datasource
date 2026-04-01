@@ -1,0 +1,11 @@
+SCHEMA >
+    `tenant_id` String,
+    `date` Date,
+    `pathname` String,
+    `browser` String,
+    `device` String,
+    `os` String,
+    `visits` AggregateFunction(uniq, String)
+
+ENGINE "AggregatingMergeTree"
+ENGINE_SORTING_KEY "tenant_id, date, pathname, browser, device, os"

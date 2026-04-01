@@ -1,10 +1,29 @@
+{
+	order geoip2_vars first
+
+	geoip2 {
+		accountId {$GEOIP2_ACCOUNT_ID}
+		licenseKey {$GEOIP2_LICENSE_KEY}
+		databaseDirectory "/tmp/geoip2"
+		lockFile "/tmp/geoip2/geoip2.lock"
+		editionID "GeoLite2-City"
+		updateFrequency 86400
+	}
+}
+
 cap.syntaxia.com {
+	geoip2_vars strict
+
 	handle /rive/* {
 		root * /srv/public
 		file_server
 	}
 
 	handle {
-		reverse_proxy cap-web:3000
+		reverse_proxy cap-web:3000 {
+			header_up X-Vercel-Ip-Country {geoip2.country_code}
+			header_up X-Vercel-Ip-Country-Region {geoip2.subdivisions_1_iso_code}
+			header_up X-Vercel-Ip-City {geoip2.city_name}
+		}
 	}
 }

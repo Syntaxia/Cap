@@ -1,0 +1,15 @@
+NODE analytics_pages_mv_node
+SQL >
+    SELECT
+        tenant_id,
+        toDate(timestamp) AS date,
+        pathname,
+        country,
+        city,
+        uniqState(session_id) AS visits
+    FROM analytics_events
+    WHERE action = 'page_hit'
+    GROUP BY tenant_id, date, pathname, country, city
+
+TYPE materialized
+DATASOURCE analytics_pages_mv
